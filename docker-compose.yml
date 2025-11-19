@@ -1,0 +1,15 @@
+version: '3.9'
+services:
+  product-service:
+    build: ./product-services
+    ports:
+      - "3000:3000"
+    container_name: product-services
+    restart: always
+  
+  cart-service:
+    build: ./cart-services
+    ports:
+      - "8000:8000"
+    container_name: cart-services
+    restart: always
