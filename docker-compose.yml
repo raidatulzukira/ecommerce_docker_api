@@ -1,5 +1,6 @@
 version: '3.9'
 services:
+  # Service 1: Product (Node.js)
   product-service:
     build: ./product-services
     ports:
@@ -7,9 +8,26 @@ services:
     container_name: product-services
     restart: always
   
+  # Service 2: Cart (PHP Lumen)
   cart-service:
     build: ./cart-services
     ports:
       - "8000:8000"
     container_name: cart-services
     restart: always
+
+  # Service 3: Review (Python Flask)
+  review-service:
+    build: ./review-services
+    ports:
+      - "5002:5002"
+    container_name: review-services
+    restart: always
+
+  # Service 4: User (Node.js)
+  user-service:
+      build: ./user-services
+      ports:
+        - "4000:4000"
+      container_name: user-services
+      restart: always
