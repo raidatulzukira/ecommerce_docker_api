@@ -1,0 +1,34 @@
+# =====================
+# Node.js
+# =====================
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# =====================
+# Environment
+# =====================
+.env
+.env.*
+!.env.example
+
+# =====================
+# Docker
+# =====================
+docker-data/
+*.log
+
+# =====================
+# OS & Editor
+# =====================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# =====================
+# Build & Cache
+# =====================
+dist/
+build/
+coverage/
