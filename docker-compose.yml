@@ -15,8 +15,8 @@ services:
     restart: always
     depends_on:
       - product-db
-    networks:         # <--- INI YANG HILANG TADI
-      - app-network   # <--- WAJIB ADA AGAR BISA KETEMU DATABASE
+    # networks:         # <--- INI YANG HILANG TADI
+    #   - app-network   # <--- WAJIB ADA AGAR BISA KETEMU DATABASE
 
 
     # build: ./product-services
@@ -44,8 +44,8 @@ services:
       MYSQL_DATABASE: ${PRODUCT_DB_NAME}
     volumes:
       - product-db-data:/var/lib/mysql
-    networks:
-      - app-network
+    # networks:
+    #   - app-network
 
     # image: mysql:8.0.36
     # env_file:
@@ -69,8 +69,8 @@ services:
       PMA_PASSWORD: root         # Password sesuai .env kamu
     depends_on:
       - product-db
-    networks:
-      - app-network
+    # networks:
+    #   - app-network
 
   # cart-service:
   #   build: ./cart-services
@@ -79,20 +79,62 @@ services:
   #   container_name: cart-services
   #   restart: always
 
-  # review-service:
-  #   build: ./review-services
-  #   ports:
-  #     - "5002:5002"
-  #   container_name: review-services
-  #   restart: always
+  review-service:
+    build: ./review-services
+    ports:
+      - "5002:5002"
+    container_name: review-services
+    restart: always
+    env_file:
+      - .env
+    depends_on:
+      - mongo-db
+    environment:
+      MONGO_URI: mongodb://admin:admin123@mongo-db:27017/reviewdb?authSource=admin
+
+  mongo-db:
+    image: mongo:latest
+    container_name: mongo-db
+    env_file:
+      - .env
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+      MONGO_INITDB_DATABASE: ${MONGO_DB_NAME}
+    ports:
+      - "${MONGO_PORT}:27017"
+    volumes:
+      - mongo-data:/data/db
+    restart: always
+    # networks:
+    #   - app-network
+
+  mongo-express:
+    image: mongo-express:1.0.2
+    container_name: mongo-express
+    env_file:
+      - .env
+    environment:
+      ME_CONFIG_BASICAUTH: "true"
+      ME_CONFIG_BASICAUTH_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      ME_CONFIG_BASICAUTH_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+      ME_CONFIG_MONGODB_URL: mongodb://${MONGO_INITDB_ROOT_USERNAME}:${MONGO_INITDB_ROOT_PASSWORD}@mongo-db:27017/?authSource=admin
+    ports:
+      - "${MONGO_EXPRESS_PORT}:8081"
+    restart: always
+    depends_on:
+      - mongo-db 
+    # networks:
+    #   - app-network
 
 volumes:
-  product-db-data:
+    product-db-data:
+    mongo-data:
 
 # Agar semua container bisa saling komunikasi
-networks:
-  app-network:
-    driver: bridge
+# networks:
+#   app-network:
+#     driver: bridge
 
 # volumes:
 #   product-db-data:
