@@ -1,115 +1,92 @@
 <?php
 
-$router->get('/cart', function () use ($router) {
-    return 'Cart Service is running';
+/** @var \Laravel\Lumen\Routing\Router $router */
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Redis;
+
+$router->get('/', function () {
+    return 'Cart Service RUNNING. Redis Connection: OK';
 });
 
-##Dummy cart data
-$carts = [
-    'items' => [
-        [
-            'id' => 1,
-            'name' => 'Product A',
-            'quantity' => 2,
-            'price' => 50.00
-        ],
-        [
-            'id' => 2,
-            'name' => 'Product B',
-            'quantity' => 1,
-            'price' => 30.00
-        ],
-        [
-            'id' => 3,
-            'name' => 'Product C',
-            'quantity' => 1,
-            'price' => 50.00
-        ],
-        [
-            'id' => 4,
-            'name' => 'Product D',
-            'quantity' => 2,
-            'price' => 20.00
-        ],
-        [
-            'id' => 5,
-            'name' => 'Product E',
-            'quantity' => 1,
-            'price' => 40.00
-        ],
-        [
-            'id' => 6,
-            'name' => 'Product F',
-            'quantity' => 1,
-            'price' => 60.00
-        ],
-        [
-            'id' => 7,
-            'name' => 'Product G',
-            'quantity' => 1,
-            'price' => 60.00
-        ]
+// ---------------------------------------------------------
+// 1. TAMBAH KE KERANJANG (POST)
+// ---------------------------------------------------------
+$router->post('/cart', function (Request $request) {
+    // Validasi input
+    $this->validate($request, [
+        'user_id' => 'required',
+        'product_id' => 'required',
+        'name' => 'required',
+        'price' => 'required'
+    ]);
 
-        
+    $userId = $request->input('user_id');
+    $productId = $request->input('product_id');
 
-    ],
-    'total' => 300.00
-];
+    // Format data yang akan disimpan
+    $item = [
+        'product_id' => $productId,
+        'name' => $request->input('name'),
+        'price' => $request->input('price'),
+        'quantity' => $request->input('quantity', 1)
+    ];
 
-//get all charts
-$router->get('/carts', function () use ($carts) {
-    return response()->json($carts);
+    // Simpan ke Redis menggunakan HASH
+    // Key utama: cart:{userId}
+    // Sub-Key (Field): {productId}
+    // Value: JSON Data
+    app('redis')->hset("cart:$userId", $productId, json_encode($item));
+
+    return response()->json(['message' => 'Item added to cart'], 201);
 });
 
-//get cart by id
-$router->get('/carts/{id}', function ($id) use ($carts) {
-    foreach ($carts['items'] as $item) {
-        if ($item['id'] == $id) {
-            return response()->json($item);
-        }
-    }
-    return response()->json(['message' => 'Item not found'], 404);
-});
-
-//delete item from cart
-// $router->delete('/carts/{id}', function ($id) use (&$carts) {
-
-//     $cartId = (int) $id;
-//     $exists = array_filter($carts, fn($c) => $c['id'] === $cartId);
-//     if (!$exists) { 
-//         return response()->json(['message' => 'Item not found'], 404);
-//     }
-//     //simulate deletion
-//     return response()->json(['message' => 'Item deleted successfully']);
-// });
-
-$router->delete('/carts/{id}', function ($id) use (&$carts) {
-    $cartId = (int) $id;
+// ---------------------------------------------------------
+// 2. AMBIL LIST KERANJANG (GET)
+// ---------------------------------------------------------
+$router->get('/cart/{userId}', function ($userId) {
+    // Ambil semua item dari Key cart:{userId}
+    $cartData = app('redis')->hgetall("cart:$userId");
     
-    // PERBAIKAN: Akses $carts['items'], bukan $carts saja
-    $items = $carts['items'];
-    
-    // Cari item di dalam array items
-    $exists = false;
-    foreach ($items as $item) {
-        if ($item['id'] === $cartId) {
-            $exists = true;
-            break;
-        }
+    $result = [];
+    foreach ($cartData as $key => $json) {
+        // Decode JSON string kembali menjadi Object/Array
+        $result[] = json_decode($json, true);
     }
+    
+    // Return sebagai List JSON agar Flutter bisa membacanya
+    return response()->json($result);
+});
 
-    if (!$exists) {
+// ---------------------------------------------------------
+// 3. UPDATE QUANTITY (PUT)
+// ---------------------------------------------------------
+$router->put('/cart/{userId}/{productId}', function (Request $request, $userId, $productId) {
+    $redis = app('redis');
+    
+    // Cek apakah item ada
+    $json = $redis->hget("cart:$userId", $productId);
+    
+    if (!$json) {
         return response()->json(['message' => 'Item not found'], 404);
     }
-
-    // Simulasi penghapusan berhasil
-    return response()->json(['message' => 'Item deleted successfully']);
+    
+    // Update datanya
+    $item = json_decode($json, true);
+    $item['quantity'] = $request->input('quantity');
+    
+    // Simpan kembali (menimpa yang lama)
+    $redis->hset("cart:$userId", $productId, json_encode($item));
+    
+    return response()->json(['message' => 'Quantity updated']);
 });
 
-
-$router->post('/carts', function () {
-    // Kita pura-pura sukses menerima data
-    return response()->json(['message' => 'Item added to cart successfully'], 201);
+// ---------------------------------------------------------
+// 4. HAPUS ITEM (DELETE)
+// ---------------------------------------------------------
+$router->delete('/cart/{userId}/{productId}', function ($userId, $productId) {
+    // Hapus field productId dari key cart:userId
+    app('redis')->hdel("cart:$userId", $productId);
+    
+    return response()->json(['message' => 'Item deleted']);
 });
-
-?>

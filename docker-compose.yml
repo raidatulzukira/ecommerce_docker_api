@@ -1,13 +1,19 @@
+version: '3.8'
+
 services:
+
+  # ----------------------------
+  # 1. PRODUCT SERVICE (Node.js + MySQL)
+  # ----------------------------
+
   product-service:
     build: ./product-services
-    ports: 
+    ports:
       - "${PRODUCT_SERVICE_PORT}:3000"
     env_file:
       - .env
     environment:
-      # Pastikan hostnya merujuk ke nama container database
-      DB_HOST: product-db  
+      DB_HOST: product-db
       DB_NAME: ${PRODUCT_DB_NAME}
       DB_USER: ${PRODUCT_DB_USER}
       DB_PASSWORD: ${PRODUCT_DB_PASSWORD}
@@ -15,25 +21,7 @@ services:
     restart: always
     depends_on:
       - product-db
-    # networks:         # <--- INI YANG HILANG TADI
-    #   - app-network   # <--- WAJIB ADA AGAR BISA KETEMU DATABASE
 
-
-    # build: ./product-services
-    # ports: 
-    #   - "${PRODUCT_SERVICE_PORT}:3000"
-    # env_file:
-    #   - .env
-    # environment:
-    #   DB_HOST: ${PRODUCT_DB_HOST}
-    #   DB_NAME: ${PRODUCT_DB_NAME}
-    #   DB_USER: ${PRODUCT_DB_USER}
-    #   DB_PASSWORD: ${PRODUCT_DB_PASSWORD}
-    # container_name: product-services
-    # restart: always
-    # depends_on:
-    #   - product-db
-  
   product-db:
     image: mysql:8.0.36
     container_name: product-db
@@ -44,22 +32,10 @@ services:
       MYSQL_DATABASE: ${PRODUCT_DB_NAME}
     volumes:
       - product-db-data:/var/lib/mysql
-    # networks:
-    #   - app-network
 
-    # image: mysql:8.0.36
-    # env_file:
-    #   - .env
-    # environment:
-    #   MYSQL_ROOT_PASSWORD : ${PRODUCT_DB_PASSWORD}
-    #   MYSQL_DATABASE : ${PRODUCT_DB_NAME}
-    # volumes:
-    #   - product-db-data:/var/lib/mysql
-
-  # --- TAMBAHAN PHPMYADMIN ---
   phpmyadmin:
     image: phpmyadmin/phpmyadmin
-    container_name: phpmyadmin  # Nama sesuai request
+    container_name: phpmyadmin  
     restart: always
     ports:
       - "8080:80"
@@ -69,20 +45,61 @@ services:
       PMA_PASSWORD: root         # Password sesuai .env kamu
     depends_on:
       - product-db
-    # networks:
-    #   - app-network
 
-  # cart-service:
-  #   build: ./cart-services
-  #   ports:
-  #     - "8000:8000"
-  #   container_name: cart-services
-  #   restart: always
+
+  # ----------------------------
+  # 2. USER SERVICE (Node.js + PostgreSQL) 
+  # ----------------------------
+
+  user-service:
+    build: ./user-services
+    container_name: user-services
+    ports:
+      - "4000:4000"
+    environment:
+      - DB_HOST=postgres-db
+      - DB_USER=user
+      - DB_PASSWORD=password
+      - DB_NAME=user_db
+      - DB_PORT=5432
+    depends_on:
+      - postgres-db
+    restart: always
+
+  postgres-db:
+    image: postgres:15-alpine
+    container_name: postgres-db
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=user_db
+    ports:
+      - "5433:5432" 
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: always
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    restart: always
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: root
+    depends_on:
+      - postgres-db
+
+
+  # ----------------------------
+  # 3. REVIEW SERVICE (Python + MongoDB)
+  # ----------------------------
 
   review-service:
     build: ./review-services
     ports:
-      - "5002:5002"
+      - "5012:5002"
     container_name: review-services
     restart: always
     env_file:
@@ -106,8 +123,6 @@ services:
     volumes:
       - mongo-data:/data/db
     restart: always
-    # networks:
-    #   - app-network
 
   mongo-express:
     image: mongo-express:1.0.2
@@ -124,17 +139,56 @@ services:
     restart: always
     depends_on:
       - mongo-db 
-    # networks:
-    #   - app-network
+
+
+  # ==========================================
+  # 4. CART SERVICE (PHP + Redis)
+  # ==========================================
+
+  cart-service:
+    build: ./cart-services
+    ports:
+      - "8000:8000"
+    container_name: cart-services
+    restart: always
+    environment:
+      - APP_ENV=local
+      - APP_DEBUG=true
+      - REDIS_HOST=redis-db
+      - REDIS_PORT=6379
+    depends_on:
+      - redis-db
+    # volumes:
+    #   - ./cart-services:/var/www/src
+
+  redis-db:
+    image: redis:alpine
+    container_name: redis-db
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: always
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: redis-commander
+    restart: always
+    environment:
+      - REDIS_HOSTS=local:redis-db:6379
+    ports:
+      - "8082:8081" # Akses lewat port 8082
+    depends_on:
+      - redis-db
+
 
 volumes:
-    product-db-data:
-    mongo-data:
+  product-db-data:
+  mongo-data:
+  postgres-data:
+  redis-data:
 
 # Agar semua container bisa saling komunikasi
 # networks:
 #   app-network:
 #     driver: bridge
-
-# volumes:
-#   product-db-data:
